@@ -116,3 +116,14 @@ pulsecheck/
 ## 👨‍💻 Author
 
 Developed as a portfolio project to explore backend development, API design, asynchronous HTTP requests, database integration, automated testing, and cloud deployment.
+
+## Screenshots
+
+### Dashboard
+![PulseCheck Dashboard](screenshots/dashoborad1.png)
+
+### Response Time Performance
+![Response Time Chart](screenshots/rspns3.png)
+
+### Recent Check History
+![Recent Check History](screenshots/db2.png)
