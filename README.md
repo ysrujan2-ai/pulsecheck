@@ -35,10 +35,6 @@ PulseCheck allows users to check website availability, view HTTP status codes, m
 | Git and GitHub | Version control |
 | Render | Deployment and hosting |
 
-## 📸 Screenshots
-
-Add screenshots of your live dashboard and response-time chart here.
-
 ## ⚙️ Run Locally
 
 ### 1. Clone the repository
