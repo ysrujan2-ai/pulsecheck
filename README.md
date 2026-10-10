@@ -1,64 +1,118 @@
-# PulseCheck — Website Health Monitor
+# PulseCheck — Website Health Monitoring
 
-PulseCheck is a lightweight website monitoring application built with **FastAPI, Python, and SQLite**. It checks website availability, measures response time, handles connection failures, and stores monitoring results for later review.
+**A lightweight website monitoring dashboard built with FastAPI, Python, and SQLite.**
 
-## Features
+PulseCheck allows users to check website availability, view HTTP status codes, measure response times, and review recent check history through a web-based dashboard.
 
-- **Website health checks** — check whether a URL responds successfully.
-- **Response time tracking** — measure how long a website takes to respond.
-- **Error handling** — handle request timeouts and connection failures.
-- **Monitoring history** — store and retrieve previous checks using SQLite.
-- **Dashboard** — view monitoring results through a web interface.
-- **Automated tests** — test API endpoints, URL validation, error handling, and database persistence.
+## 🚀 Live Demo
 
-## Tech Stack
+**[Open PulseCheck](https://pulsecheck-xshk.onrender.com/)**
 
-- **Backend:** Python, FastAPI
-- **HTTP requests:** HTTPX
-- **Database:** SQLite
-- **Frontend:** HTML, CSS, JavaScript
-- **Testing:** Pytest, FastAPI TestClient
+> Note: The free hosting instance may take a little time to respond after a period of inactivity.
+
+## ✨ Features
+
+- **Website health checks** — Check whether a website responds successfully.
+- **HTTP status codes** — View the status code returned by a website.
+- **Response time measurement** — Measure request duration in milliseconds.
+- **Interactive dashboard** — Visualize response-time performance.
+- **Recent check history** — View previously recorded website checks.
+- **Error handling** — Handle invalid URLs, timeouts, and connection errors.
+- **Persistent local storage** — Store check records in a SQLite database.
+- **Automated tests** — Test API endpoints and database persistence using pytest.
+
+## 🛠️ Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| Python | Backend programming |
+| FastAPI | REST API and web server |
+| HTTPX | Asynchronous HTTP requests |
+| SQLite | Local database |
+| HTML, CSS, JavaScript | Dashboard interface |
+| Pytest | Automated testing |
+| Uvicorn | ASGI server |
+| Git and GitHub | Version control |
+| Render | Deployment and hosting |
+
+## 📸 Screenshots
+
+Add screenshots of your live dashboard and response-time chart here.
+
+## ⚙️ Run Locally
+
+### 1. Clone the repository
+
+bash
+git clone https://github.com/ysrujan2-ai/pulsecheck.git
+cd pulsecheck
 
 
+### 2. Create and activate a virtual environment
 
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.10 or newer
-- Git (optional, for cloning the repository)
-
-### Installation
-
-1. Clone the repository or download the project.
-2. Open a terminal in the project directory.
-3. Create and activate a virtual environment.
-
-**Windows PowerShell:**
+**Windows PowerShell**
 
 powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-
-4. Install the dependencies:
-
-powershell
-python -m pip install fastapi uvicorn httpx pytest
+.venv\Scripts\Activate.ps1
 
 
-5. Start the application:
+### 3. Install dependencies
 
-powershell
+bash
+python -m pip install -r requirements.txt
+
+
+### 4. Start the application
+
+bash
 python -m uvicorn main:app --reload
 
 
-6. Open `http://127.0.0.1:8000` in your browser.
+Open http://127.0.0.1:8000 in your browser.
 
-### Running Tests
+## 🧪 Run Tests
 
-Run the automated test suite with:
-
-powershell
+bash
 python -m pytest -v
 
+
+The project currently has nine passing automated tests covering application endpoints, website-check scenarios, and database persistence.
+
+## 🔌 API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/` | Dashboard homepage |
+| GET | `/health` | Application health status |
+| GET | `/check?url=https://example.com` | Check a website |
+| GET | `/history` | Retrieve recent check history |
+
+Interactive API documentation is available at `/docs` when the application is running.
+
+## 📁 Project Structure
+
+text
+pulsecheck/
+├── main.py
+├── database.py
+├── requirements.txt
+├── test_main.py
+├── README.md
+└── static/
+    ├── index.html
+    ├── style.css
+    └── script.js
+
+
+## 🔮 Future Improvements
+
+- Scheduled website monitoring
+- Uptime percentage and availability statistics
+- Persistent hosted database
+- Alerts when a website becomes unavailable
+- Monitoring multiple websites from one dashboard
+
+## 👨‍💻 Author
+
+Developed as a portfolio project to explore backend development, API design, asynchronous HTTP requests, database integration, automated testing, and cloud deployment.
