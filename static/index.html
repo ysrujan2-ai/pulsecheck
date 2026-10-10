@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseCheck | Website Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/script.js" defer></script>
+</head>
+
+<body>
+    <header>
+        <h1>PulseCheck</h1>
+        <p>Monitor website availability and response times.</p>
+    </header>
+
+    <main>
+        <button class="refresh-btn" id="refreshBtn" type="button">
+            ↻ Refresh Dashboard
+        </button>
+
+        <section class="stats">
+            <article class="card">
+                <p>Total Checks</p>
+                <div class="stat-value" id="totalChecks">—</div>
+                <small>Recorded requests</small>
+            </article>
+
+            <article class="card">
+                <p>Successful Checks</p>
+                <div class="stat-value" id="successfulChecks">—</div>
+                <small>HTTP 2xx responses</small>
+            </article>
+
+            <article class="card">
+                <p>Failed Checks</p>
+                <div class="stat-value" id="failedChecks">—</div>
+                <small>Unavailable or unsuccessful</small>
+            </article>
+
+            <article class="card">
+                <p>Average Response</p>
+                <div class="stat-value" id="averageResponse">—</div>
+                <small>Across recorded checks (ms)</small>
+            </article>
+        </section>
+
+        <section class="panel">
+            <h2>Check a website</h2>
+            <p class="panel-description">
+                Enter a URL to test its availability.
+            </p>
+
+            <form class="url-form" id="checkForm">
+                <input type="url" id="websiteUrl" placeholder="https://example.com" aria-label="Website URL" required>
+                <button class="primary-btn" id="checkBtn" type="submit">
+                    Check Website →
+                </button>
+            </form>
+
+            <div id="result" aria-live="polite">
+                <p class="panel-description">Your check result will appear here.</p>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Recent check history</h2>
+            <p class="panel-description">
+                Your latest recorded website checks.
+            </p>
+
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Website</th>
+                            <th>Status</th>
+                            <th>Response Time</th>
+                            <th>Checked At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyBody">
+                        <tr>
+                            <td colspan="4" class="empty-state">
+                                Loading history...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p id="historyCount" class="panel-description">Loading records...</p>
+        </section>
+    </main>
+
+    <footer>
+        PulseCheck · Website Health Monitoring · Built with FastAPI
+    </footer>
+</body>
+
+</html>
+
+<section class="panel">
+    <h2>Response Time Performance</h2>
+    <p class="panel-description">
+        Track response times across your latest website checks.
+    </p>
+
+    <div class="chart-container">
+        <canvas id="responseChart" aria-label="Response time chart">
+            Response time chart
+        </canvas>
+    </div>
+
+    <p id="chartSummary" class="panel-description">
+        Waiting for check data...
+    </p>
+</section>
