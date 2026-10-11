@@ -4,6 +4,7 @@ import tempfile
 
 from fastapi.testclient import TestClient
 from main import app
+import pytest
 
 
 def test_health_check():
@@ -153,3 +154,92 @@ def test_database_persistence():
         assert history[0]["url"] == "https://example.com"
         assert history[0]["status_code"] == 200
         assert history[0]["is_up"] == 1
+
+
+def test_monitored_sites_database():
+    from database import (
+        init_db,
+        add_monitored_site,
+        get_monitored_sites,
+        remove_monitored_site,
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        test_db = os.path.join(temp_dir, "monitored.db")
+        init_db(db_name=test_db)
+
+        site_id = add_monitored_site(
+            "https://example.com",
+            interval_minutes=5,
+            db_name=test_db,
+        )
+
+        sites = get_monitored_sites(db_name=test_db)
+
+        assert len(sites) == 1
+        assert sites[0]["id"] == site_id
+        assert sites[0]["url"] == "https://example.com"
+        assert sites[0]["interval_minutes"] == 5
+        assert sites[0]["is_enabled"] == 1
+
+        removed = remove_monitored_site(
+            site_id,
+            db_name=test_db,
+        )
+
+        assert removed is True
+        assert get_monitored_sites(db_name=test_db) == []
+
+
+
+def test_update_monitored_site_last_checked():
+    from database import (
+        init_db,
+        add_monitored_site,
+        get_monitored_sites,
+        update_monitored_site_last_checked,
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        test_db = os.path.join(temp_dir, "monitored_timestamp.db")
+        init_db(db_name=test_db)
+
+        site_id = add_monitored_site(
+            "https://example.com",
+            interval_minutes=5,
+            db_name=test_db,
+        )
+
+        updated = update_monitored_site_last_checked(
+            site_id,
+            db_name=test_db,
+        )
+
+        sites = get_monitored_sites(db_name=test_db)
+
+        assert updated is True
+        assert len(sites) == 1
+        assert sites[0]["last_checked_at"] is not None
+
+
+@pytest.mark.anyio
+async def test_monitoring_cycle_skips_recently_checked_site(monkeypatch):
+    from datetime import datetime, timezone
+    import main
+
+    site = {
+        "id": 1,
+        "url": "https://example.com",
+        "interval_minutes": 5,
+        "is_enabled": 1,
+        "last_checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    monkeypatch.setattr(main, "get_monitored_sites", lambda: [site])
+
+    async def unexpected_check(url):
+        raise AssertionError("A recently checked site should be skipped")
+
+    monkeypatch.setattr(main, "check_website", unexpected_check)
+
+    await main.run_monitoring_cycle()
