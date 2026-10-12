@@ -18,6 +18,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pathlib import Path
 from datetime import datetime, timezone
+import asyncio
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 
 
 
@@ -25,7 +28,25 @@ from datetime import datetime, timezone
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(
+        run_monitoring_cycle,
+        trigger="interval",
+        seconds=60,
+        id="pulsecheck_monitoring",
+        max_instances=1,
+        coalesce=True,
+        misfire_grace_time=30,
+    )
+
+    scheduler.start()
+    app.state.scheduler = scheduler
+
+    try:
+        yield
+    finally:
+        scheduler.shutdown(wait=False)
 
 
 app = FastAPI(

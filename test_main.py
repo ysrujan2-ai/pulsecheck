@@ -304,3 +304,12 @@ async def test_monitoring_cycle_checks_overdue_site(monkeypatch):
     assert checked_urls == ["https://example.com"]
     assert updated_ids == [1]
 
+
+def test_scheduler_starts_and_stops():
+    from fastapi.testclient import TestClient
+    from main import app
+
+    with TestClient(app) as client:
+        assert app.state.scheduler.running is True
+
+    assert app.state.scheduler.running is False
