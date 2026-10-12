@@ -305,6 +305,7 @@ async def test_monitoring_cycle_checks_overdue_site(monkeypatch):
     assert updated_ids == [1]
 
 
+
 def test_scheduler_starts_and_stops():
     from fastapi.testclient import TestClient
     from main import app
@@ -312,4 +313,9 @@ def test_scheduler_starts_and_stops():
     with TestClient(app) as client:
         assert app.state.scheduler.running is True
 
+        job = app.state.scheduler.get_job("pulsecheck_monitoring")
+        assert job is not None
+        assert job.trigger.interval.total_seconds() == 60
+
     assert app.state.scheduler.running is False
+
