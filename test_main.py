@@ -377,3 +377,37 @@ def test_check_rejects_private_ip():
 
     assert response.status_code == 400
 
+
+from unittest.mock import AsyncMock, patch
+import httpx
+
+
+def test_check_follows_redirect():
+    with patch("main.validate_public_url") as validate, \
+         patch("main.httpx.AsyncClient") as client_mock:
+
+        client = AsyncMock()
+        client.get.side_effect = [
+            httpx.Response(
+                301,
+                headers={"location": "https://example.com/new"},
+                request=httpx.Request("GET", "https://example.com"),
+            ),
+            httpx.Response(
+                200,
+                request=httpx.Request("GET", "https://example.com/new"),
+            ),
+        ]
+
+        client_mock.return_value.__aenter__.return_value = client
+
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/check",
+                params={"url": "https://example.com"},
+            )
+
+    assert response.status_code == 200
+    assert response.json()["status_code"] == 200
+    assert client.get.await_count == 2
+    assert validate.call_count == 3

@@ -23,7 +23,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 import ipaddress
 import socket
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
+
 
 
 
@@ -157,11 +158,33 @@ async def check_website(url: HttpUrl):
 
 
     try:
+        
         async with httpx.AsyncClient(
             timeout=5.0,
             follow_redirects=False,
         ) as client:
-            response = await client.get(target_url)
+            current_url = target_url
+
+            for redirect_count in range(6):
+                validate_public_url(current_url)
+                response = await client.get(current_url)
+
+                if response.status_code not in (301, 302, 303, 307, 308):
+                    break
+
+                location = response.headers.get("location")
+
+                if not location:
+                    break
+
+                if redirect_count == 5:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="Too many redirects",
+                    )
+
+                current_url = urljoin(str(response.url), location)
+
 
         elapsed_ms = round(
             (time.perf_counter() - start_time) * 1000, 2
