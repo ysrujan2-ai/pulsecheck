@@ -342,3 +342,38 @@ def test_check_connection_error():
             )
 
     assert response.status_code == 502
+
+    
+from fastapi.testclient import TestClient
+from main import app
+
+
+def test_check_rejects_localhost():
+    with TestClient(app) as client:
+        response = client.get(
+            "/check",
+            params={"url": "http://localhost"},
+        )
+
+    assert response.status_code == 400
+
+
+def test_check_rejects_loopback_ip():
+    with TestClient(app) as client:
+        response = client.get(
+            "/check",
+            params={"url": "http://127.0.0.1:9999"},
+        )
+
+    assert response.status_code == 400
+
+
+def test_check_rejects_private_ip():
+    with TestClient(app) as client:
+        response = client.get(
+            "/check",
+            params={"url": "http://192.168.1.1"},
+        )
+
+    assert response.status_code == 400
+

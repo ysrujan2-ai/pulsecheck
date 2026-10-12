@@ -21,6 +21,11 @@ from datetime import datetime, timezone
 import asyncio
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+import ipaddress
+import socket
+from urllib.parse import urlsplit
+
+
 
 
 
@@ -85,16 +90,76 @@ def health_check():
     }
 
 
+def validate_public_url(url: str) -> None:
+    """Reject URLs that target private or non-public network addresses."""
+    parsed = urlsplit(url)
+
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(
+            status_code=400,
+            detail="Only HTTP and HTTPS URLs are allowed",
+        )
+
+    if not parsed.hostname or parsed.username or parsed.password:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid URL",
+        )
+
+    hostname = parsed.hostname.lower()
+
+    if hostname == "localhost" or hostname.endswith(
+        (".localhost", ".local", ".internal")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Private or internal destinations are not allowed",
+        )
+
+    try:
+        addresses = {
+            result[4][0]
+            for result in socket.getaddrinfo(
+                hostname,
+                parsed.port or (443 if parsed.scheme == "https" else 80),
+                type=socket.SOCK_STREAM,
+            )
+        }
+
+        if not addresses:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not resolve hostname",
+            )
+
+        for address in addresses:
+            ip = ipaddress.ip_address(address)
+
+            if not ip.is_global:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Private or internal destinations are not allowed",
+                )
+
+    except (socket.gaierror, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or unresolvable hostname",
+        )
+
 
 @app.get("/check")
 async def check_website(url: HttpUrl):
+    
     target_url = str(url)
+    validate_public_url(target_url)
     start_time = time.perf_counter()
+
 
     try:
         async with httpx.AsyncClient(
             timeout=5.0,
-            follow_redirects=True,
+            follow_redirects=False,
         ) as client:
             response = await client.get(target_url)
 
