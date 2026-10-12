@@ -319,3 +319,26 @@ def test_scheduler_starts_and_stops():
 
     assert app.state.scheduler.running is False
 
+
+def test_check_connection_error():
+    from unittest.mock import AsyncMock, patch
+    from fastapi.testclient import TestClient
+    import httpx
+    from main import app
+
+    with patch(
+        "main.httpx.AsyncClient",
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                side_effect=httpx.ConnectError("Connection failed")
+            ),
+            __aexit__=AsyncMock(return_value=False),
+        ),
+    ):
+        with TestClient(app) as client:
+            response = client.get(
+                "/check",
+                params={"url": "https://example.com"},
+            )
+
+    assert response.status_code == 502
