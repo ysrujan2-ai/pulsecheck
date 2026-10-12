@@ -5,6 +5,7 @@ import tempfile
 from fastapi.testclient import TestClient
 from main import app
 import pytest
+from fastapi import HTTPException
 
 
 def test_health_check():
@@ -411,3 +412,36 @@ def test_check_follows_redirect():
     assert response.json()["status_code"] == 200
     assert client.get.await_count == 2
     assert validate.call_count == 3
+
+def test_check_rejects_redirect_to_private_ip():
+    with patch("main.validate_public_url") as validate, \
+         patch("main.httpx.AsyncClient") as client_mock:
+
+        client = AsyncMock()
+        client.get.side_effect = [
+            httpx.Response(
+                302,
+                headers={"location": "http://127.0.0.1:9999"},
+                request=httpx.Request("GET", "https://example.com"),
+            ),
+        ]
+
+        client_mock.return_value.__aenter__.return_value = client
+
+        def validate_url(url):
+            if "127.0.0.1" in url:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Private or internal destinations are not allowed",
+                )
+
+        validate.side_effect = validate_url
+
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/check",
+                params={"url": "https://example.com"},
+            )
+
+    assert response.status_code == 400
+    assert client.get.await_count == 1
