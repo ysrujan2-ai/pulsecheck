@@ -445,3 +445,39 @@ def test_check_rejects_redirect_to_private_ip():
 
     assert response.status_code == 400
     assert client.get.await_count == 1
+
+
+@pytest.mark.anyio
+async def test_monitoring_cycle_updates_timestamp_after_failure(monkeypatch):
+    import main
+    from fastapi import HTTPException
+
+    site = {
+        "id": 99,
+        "url": "https://example.com",
+        "interval_minutes": 5,
+        "is_enabled": 1,
+        "last_checked_at": None,
+    }
+
+    updated_ids = []
+
+    monkeypatch.setattr(main, "get_monitored_sites", lambda: [site])
+
+    async def failed_check(url):
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to the website",
+        )
+
+    monkeypatch.setattr(main, "check_website", failed_check)
+    monkeypatch.setattr(
+        main,
+        "update_monitored_site_last_checked",
+        lambda site_id: updated_ids.append(site_id),
+    )
+
+    await main.run_monitoring_cycle()
+
+    assert updated_ids == [99]
+
