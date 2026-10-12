@@ -243,3 +243,64 @@ async def test_monitoring_cycle_skips_recently_checked_site(monkeypatch):
     monkeypatch.setattr(main, "check_website", unexpected_check)
 
     await main.run_monitoring_cycle()
+
+
+
+@pytest.mark.anyio
+async def test_monitoring_cycle_skips_disabled_site(monkeypatch):
+    import main
+
+    site = {
+        "id": 1,
+        "url": "https://example.com",
+        "interval_minutes": 5,
+        "is_enabled": 0,
+        "last_checked_at": None,
+    }
+
+    monkeypatch.setattr(main, "get_monitored_sites", lambda: [site])
+
+    async def unexpected_check(url):
+        raise AssertionError("A disabled site should not be checked")
+
+    monkeypatch.setattr(main, "check_website", unexpected_check)
+
+    await main.run_monitoring_cycle()
+
+
+@pytest.mark.anyio
+async def test_monitoring_cycle_checks_overdue_site(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    import main
+
+    site = {
+        "id": 1,
+        "url": "https://example.com",
+        "interval_minutes": 5,
+        "is_enabled": 1,
+        "last_checked_at": (
+            datetime.now(timezone.utc) - timedelta(minutes=10)
+        ).isoformat(),
+    }
+
+    checked_urls = []
+    updated_ids = []
+
+    monkeypatch.setattr(main, "get_monitored_sites", lambda: [site])
+
+    async def fake_check_website(url):
+        checked_urls.append(url)
+        return {"is_up": True}
+
+    monkeypatch.setattr(main, "check_website", fake_check_website)
+    monkeypatch.setattr(
+        main,
+        "update_monitored_site_last_checked",
+        lambda site_id: updated_ids.append(site_id),
+    )
+
+    await main.run_monitoring_cycle()
+
+    assert checked_urls == ["https://example.com"]
+    assert updated_ids == [1]
+
