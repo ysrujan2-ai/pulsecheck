@@ -4,6 +4,8 @@ import tempfile
 
 from fastapi.testclient import TestClient
 from main import app
+import pytest
+from fastapi import HTTPException
 
 
 def test_health_check():
@@ -153,3 +155,329 @@ def test_database_persistence():
         assert history[0]["url"] == "https://example.com"
         assert history[0]["status_code"] == 200
         assert history[0]["is_up"] == 1
+
+
+def test_monitored_sites_database():
+    from database import (
+        init_db,
+        add_monitored_site,
+        get_monitored_sites,
+        remove_monitored_site,
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        test_db = os.path.join(temp_dir, "monitored.db")
+        init_db(db_name=test_db)
+
+        site_id = add_monitored_site(
+            "https://example.com",
+            interval_minutes=5,
+            db_name=test_db,
+        )
+
+        sites = get_monitored_sites(db_name=test_db)
+
+        assert len(sites) == 1
+        assert sites[0]["id"] == site_id
+        assert sites[0]["url"] == "https://example.com"
+        assert sites[0]["interval_minutes"] == 5
+        assert sites[0]["is_enabled"] == 1
+
+        removed = remove_monitored_site(
+            site_id,
+            db_name=test_db,
+        )
+
+        assert removed is True
+        assert get_monitored_sites(db_name=test_db) == []
+
+
+
+def test_update_monitored_site_last_checked():
+    from database import (
+        init_db,
+        add_monitored_site,
+        get_monitored_sites,
+        update_monitored_site_last_checked,
+    )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        test_db = os.path.join(temp_dir, "monitored_timestamp.db")
+        init_db(db_name=test_db)
+
+        site_id = add_monitored_site(
+            "https://example.com",
+            interval_minutes=5,
+            db_name=test_db,
+        )
+
+        updated = update_monitored_site_last_checked(
+            site_id,
+            db_name=test_db,
+        )
+
+        sites = get_monitored_sites(db_name=test_db)
+
+        assert updated is True
+        assert len(sites) == 1
+        assert sites[0]["last_checked_at"] is not None
+
+
+@pytest.mark.anyio
+async def test_monitoring_cycle_skips_recently_checked_site(monkeypatch):
+    from datetime import datetime, timezone
+    import main
+
+    site = {
+        "id": 1,
+        "url": "https://example.com",
+        "interval_minutes": 5,
+        "is_enabled": 1,
+        "last_checked_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    monkeypatch.setattr(main, "get_monitored_sites", lambda: [site])
+
+    async def unexpected_check(url):
+        raise AssertionError("A recently checked site should be skipped")
+
+    monkeypatch.setattr(main, "check_website", unexpected_check)
+
+    await main.run_monitoring_cycle()
+
+
+
+@pytest.mark.anyio
+async def test_monitoring_cycle_skips_disabled_site(monkeypatch):
+    import main
+
+    site = {
+        "id": 1,
+        "url": "https://example.com",
+        "interval_minutes": 5,
+        "is_enabled": 0,
+        "last_checked_at": None,
+    }
+
+    monkeypatch.setattr(main, "get_monitored_sites", lambda: [site])
+
+    async def unexpected_check(url):
+        raise AssertionError("A disabled site should not be checked")
+
+    monkeypatch.setattr(main, "check_website", unexpected_check)
+
+    await main.run_monitoring_cycle()
+
+
+@pytest.mark.anyio
+async def test_monitoring_cycle_checks_overdue_site(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    import main
+
+    site = {
+        "id": 1,
+        "url": "https://example.com",
+        "interval_minutes": 5,
+        "is_enabled": 1,
+        "last_checked_at": (
+            datetime.now(timezone.utc) - timedelta(minutes=10)
+        ).isoformat(),
+    }
+
+    checked_urls = []
+    updated_ids = []
+
+    monkeypatch.setattr(main, "get_monitored_sites", lambda: [site])
+
+    async def fake_check_website(url):
+        checked_urls.append(url)
+        return {"is_up": True}
+
+    monkeypatch.setattr(main, "check_website", fake_check_website)
+    monkeypatch.setattr(
+        main,
+        "update_monitored_site_last_checked",
+        lambda site_id: updated_ids.append(site_id),
+    )
+
+    await main.run_monitoring_cycle()
+
+    assert checked_urls == ["https://example.com"]
+    assert updated_ids == [1]
+
+
+
+def test_scheduler_starts_and_stops():
+    from fastapi.testclient import TestClient
+    from main import app
+
+    with TestClient(app) as client:
+        assert app.state.scheduler.running is True
+
+        job = app.state.scheduler.get_job("pulsecheck_monitoring")
+        assert job is not None
+        assert job.trigger.interval.total_seconds() == 60
+
+    assert app.state.scheduler.running is False
+
+
+def test_check_connection_error():
+    from unittest.mock import AsyncMock, patch
+    from fastapi.testclient import TestClient
+    import httpx
+    from main import app
+
+    with patch(
+        "main.httpx.AsyncClient",
+        return_value=AsyncMock(
+            __aenter__=AsyncMock(
+                side_effect=httpx.ConnectError("Connection failed")
+            ),
+            __aexit__=AsyncMock(return_value=False),
+        ),
+    ):
+        with TestClient(app) as client:
+            response = client.get(
+                "/check",
+                params={"url": "https://example.com"},
+            )
+
+    assert response.status_code == 502
+
+    
+from fastapi.testclient import TestClient
+from main import app
+
+
+def test_check_rejects_localhost():
+    with TestClient(app) as client:
+        response = client.get(
+            "/check",
+            params={"url": "http://localhost"},
+        )
+
+    assert response.status_code == 400
+
+
+def test_check_rejects_loopback_ip():
+    with TestClient(app) as client:
+        response = client.get(
+            "/check",
+            params={"url": "http://127.0.0.1:9999"},
+        )
+
+    assert response.status_code == 400
+
+
+def test_check_rejects_private_ip():
+    with TestClient(app) as client:
+        response = client.get(
+            "/check",
+            params={"url": "http://192.168.1.1"},
+        )
+
+    assert response.status_code == 400
+
+
+from unittest.mock import AsyncMock, patch
+import httpx
+
+
+def test_check_follows_redirect():
+    with patch("main.validate_public_url") as validate, \
+         patch("main.httpx.AsyncClient") as client_mock:
+
+        client = AsyncMock()
+        client.get.side_effect = [
+            httpx.Response(
+                301,
+                headers={"location": "https://example.com/new"},
+                request=httpx.Request("GET", "https://example.com"),
+            ),
+            httpx.Response(
+                200,
+                request=httpx.Request("GET", "https://example.com/new"),
+            ),
+        ]
+
+        client_mock.return_value.__aenter__.return_value = client
+
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/check",
+                params={"url": "https://example.com"},
+            )
+
+    assert response.status_code == 200
+    assert response.json()["status_code"] == 200
+    assert client.get.await_count == 2
+    assert validate.call_count == 3
+
+def test_check_rejects_redirect_to_private_ip():
+    with patch("main.validate_public_url") as validate, \
+         patch("main.httpx.AsyncClient") as client_mock:
+
+        client = AsyncMock()
+        client.get.side_effect = [
+            httpx.Response(
+                302,
+                headers={"location": "http://127.0.0.1:9999"},
+                request=httpx.Request("GET", "https://example.com"),
+            ),
+        ]
+
+        client_mock.return_value.__aenter__.return_value = client
+
+        def validate_url(url):
+            if "127.0.0.1" in url:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Private or internal destinations are not allowed",
+                )
+
+        validate.side_effect = validate_url
+
+        with TestClient(app) as test_client:
+            response = test_client.get(
+                "/check",
+                params={"url": "https://example.com"},
+            )
+
+    assert response.status_code == 400
+    assert client.get.await_count == 1
+
+
+@pytest.mark.anyio
+async def test_monitoring_cycle_updates_timestamp_after_failure(monkeypatch):
+    import main
+    from fastapi import HTTPException
+
+    site = {
+        "id": 99,
+        "url": "https://example.com",
+        "interval_minutes": 5,
+        "is_enabled": 1,
+        "last_checked_at": None,
+    }
+
+    updated_ids = []
+
+    monkeypatch.setattr(main, "get_monitored_sites", lambda: [site])
+
+    async def failed_check(url):
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to the website",
+        )
+
+    monkeypatch.setattr(main, "check_website", failed_check)
+    monkeypatch.setattr(
+        main,
+        "update_monitored_site_last_checked",
+        lambda site_id: updated_ids.append(site_id),
+    )
+
+    await main.run_monitoring_cycle()
+
+    assert updated_ids == [99]
+
