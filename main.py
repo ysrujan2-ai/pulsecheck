@@ -301,9 +301,12 @@ async def run_monitoring_cycle():
 
         if last_checked:
             try:
-                last_checked_at = datetime.fromisoformat(
-                    last_checked.replace("Z", "+00:00")
-                )
+                if isinstance(last_checked, datetime):
+                    last_checked_at = last_checked
+                else:
+                    last_checked_at = datetime.fromisoformat(
+                        str(last_checked).replace("Z", "+00:00")
+                    )
 
                 if last_checked_at.tzinfo is None:
                     last_checked_at = last_checked_at.replace(
