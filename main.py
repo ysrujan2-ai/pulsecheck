@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+
 import time
 import sqlite3
 import httpx
@@ -24,11 +28,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import ipaddress
 import socket
 from urllib.parse import urljoin, urlsplit
-
-
-
-
-
 
 
 @asynccontextmanager
